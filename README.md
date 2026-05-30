@@ -74,7 +74,12 @@
 - `upperLimit = 0.0`（未按壓時的初始上限位置）
 - `stiffness = 80.0`（回彈剛性）
 - `damping = 5.0`（回彈阻尼）
+- `maxForce = inf`（joint drive 未設明確推力上限）
 - `targetPosition = 0.0`（回彈後的目標位置）
+- `mass = 1.0`（瓶身主要剛體質量）
+- `dynamicFriction = 0.28`（動摩擦）
+- `staticFriction = 0.30`（靜摩擦）
+- `restitution = 0.30`（碰撞彈性）
 
 ### FSM 與 datagen
 

@@ -44,7 +44,14 @@
 - drive：
   - `stiffness = 80.0`：回彈剛性
   - `damping = 5.0`：回彈阻尼
+  - `maxForce = inf`：未設明確推力上限
   - `targetPosition = 0.0`
+- mass：
+  - `physics:mass = 1.0`：瓶身主要剛體質量
+- material：
+  - `dynamicFriction = 0.28`
+  - `staticFriction = 0.30`
+  - `restitution = 0.30`
 
 ### Env 設定
 
