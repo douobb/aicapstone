@@ -138,18 +138,19 @@ python scripts/teleop.py \
 2. 按 `N` 標記任務成功
 3. 或按 `R` 來捨棄並重新錄製
 
-設定 `--num_demos 0` :取消episode數量限制 (按 Ctrl+C 停止); 加上 `--resume` 選項: 將結果併入已存在的dataset。
+設定 `--num_demos 0` :取消episode數量限制 (按 Ctrl+C 停止)。
+加上 `--resume` 選項: 將結果併入已存在的dataset。
 
-#### 可調的flags
+#### 可調的flags:
 
-| Flag | Purpose |
+| Flag | 用途 |
 |------|---------|
 | `--sensitivity <float>` | Scale translation + rotation step sizes |
 | `--step_hz <int>` | Environment stepping rate (default 60) |
 | `--seed <int>` | Deterministic env seed |
 | `--quality` | Enable high-quality render mode (FXAA) |
 
-See `scripts/teleop.py --help` for the full list.
+輸入指令 `scripts/teleop.py --help` 以查看所有flags。
 
 ### 2. teleop 操作
 
