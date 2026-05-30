@@ -1,168 +1,133 @@
-# AI Capstone
+# AI Capstone Course Project
 
-Sim-to-real imitation-learning pipeline for robot manipulation tasks. Record human demonstrations with UMI, process them through SLAM, generate synthetic data in Isaac Lab, train a diffusion policy with LeRobot, and evaluate it in simulation.
+專案基於 [HCIS-Lab/aicapstone](https://github.com/HCIS-Lab/aicapstone) 修改與擴充。
 
-> **Platform:** Linux only.
+原始專案提供：
 
-For a complete step-by-step walkthrough, see [Getting Started](docs/getting_started.md).
+- NVIDIA Isaac Sim / Isaac Lab 模擬框架
+- UMI demonstration processing pipeline
+- LeRobot training / rollout pipeline
+- 三個既有任務：
+  - `HCIS-CupStacking-SingleArm-v0`
+  - `HCIS-CutleryArrangement-SingleArm-v0`
+  - `HCIS-ToyBlocksCollection-SingleArm-v0`
 
-# Human Demonstration Data Processing
+我們這次作業的重點是新增一個進階任務：
 
-1. **Installation**
+- `HCIS-PumpBottlePress-SingleArm-v0`
 
-   ```bash
-   uv sync --package umi
-   ```
+---
 
-2. **Activate the virtual environment**
+## 專案簡介
 
-   ```bash
-   source .venv/bin/activate
-   ```
+`pump_bottle_press` 是一個單手 Franka 機械手臂的模擬操作任務。目標是讓機械手臂接近按壓瓶的 pump head，完成一次有效按壓，並保持瓶身直立。
 
-   This makes `hf`, `lerobot-train`, and other installed commands available in your terminal.
+目前的任務設計重點：
 
-3. **Hugging Face login**
+- 成功條件：`pressed AND upright`
+- 物件：使用帶有 `prismatic joint` 的 `pump_bottle` 資產
+- 資料生成方向：
+  - 前期以 `teleop smoke test` 驗證環境與互動
+  - 後續以 `FSM datagen` 自動產生訓練資料
+- datagen 初始化：
+  - 使用 synthetic `object_poses.json`
 
-   Create an access token at: <https://huggingface.co/docs/hub/en/security-tokens>
+---
 
-   Then log in:
+## 新增任務細節
 
-   ```bash
-   hf auth login --token <YOUR_HF_TOKEN>
-   ```
+### 環境
 
-4. **Set your Hugging Face username**
+新增場景物件支援：
 
-   Commands throughout this project use `${HF_USER}`. Set it once per terminal session:
+- `packages/simulator/src/simulator/assets/scenes/bathroom.py`
 
-   ```bash
-   export HF_USER=<your-huggingface-username>
-   ```
+新增任務設定：
 
-## After recording the demonstration videos, follow this practice
+- `packages/simulator/src/simulator/tasks/pump_bottle_press/__init__.py`
+- `packages/simulator/src/simulator/tasks/pump_bottle_press/pump_bottle_press_env_cfg.py`
 
-1. Under `data/`, create a directory for this demo. Suggested name: `YYYYMMDD-taskname`. Add a `raw_videos/` subdirectory under it.
-2. Place the recorded videos in `data/YYYYMMDD-taskname/raw_videos/`.
+任務內部重點：
 
-## Verify the recorded demonstration videos
+- `pump_bottle` 使用 `ArticulationCfg`
+- 讀取內部 `prismatic joint` 狀態判斷是否成功
+- 成功條件：
+  - 按壓深度達門檻
+  - 瓶身維持直立
+- 已支援 `object_pose_cfg`
+  - 可吃 synthetic `object_poses.json`
 
-The SLAM mapping stage is fragile. To save time, run the verify pipeline first:
+### 資產
 
-```bash
-uv run umi run-slam-pipeline umi_pipeline_configs/verify_pipeline.yaml \
-    --session-dir <demo_directory_name>
-```
+使用的 bottle 資產位於：
 
-## If verification fails, re-record and copy into the demo directory
+- `packages/simulator/assets/scenes/bathroom/objects/pump_bottle/`
 
-There are several failure modes:
+主 USD：
 
-### SLAM failures
+- `packages/simulator/assets/scenes/bathroom/objects/pump_bottle/model_pressure_pump_3.usd`
 
-Pipeline raises:
+已確認的重要物理資訊：
 
-```
-RuntimeError: SLAM mapping failed. Check logs at datasets/team_asia/demos/mapping/slam_stdout.txt for details.
-```
+- `prismatic joint`（按壓頭可沿單一軸向滑動）
+- `lowerLimit = -0.02`（最大按下行程下限）
+- `upperLimit = 0.0`（未按壓時的初始上限位置）
+- `stiffness = 80.0`（回彈剛性）
+- `damping = 5.0`（回彈阻尼）
+- `targetPosition = 0.0`（回彈後的目標位置）
 
-Re-record the mapping video, replace the file, and re-run the verification pipeline.
+### FSM 與 datagen
 
-## If verification succeeds, run the full pipeline
+新增 FSM：
 
-```bash
-uv run umi run-slam-pipeline umi_pipeline_configs/build_dataset.yaml \
-    --session-dir <demo_directory_name> \
-    --task <kitchen|dining_room|living_room>
-```
+- `packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py`
 
-Upload the whole session directory to the Hugging Face Hub:
+FSM 目前包含 phases：
 
-```bash
-hf upload ${HF_USER}/<repo_id> data/<demo_directory_name>/demos/mapping/object_poses.json
-```
+1. move above
+2. align
+3. descend
+4. press
+5. hold
+6. release up
+7. retreat
 
-# Data Creation in Simulator
+並已接入：
 
-## Prerequisites
+- `scripts/datagen/generate.py`
 
-1. **Linux machine with Nvidia GPU** — verify with `nvidia-smi`. Isaac Lab requires a Linux host with an Nvidia driver.
-2. **Docker installed** — the simulator runs inside a container.
-3. **Repository cloned** — if you haven't already:
-   ```bash
-   git clone https://github.com/HCIS-Lab/aicapstone.git
-   cd aicapstone
-   ```
+另外新增 synthetic pose 工具：
 
-## Launch Isaac Lab
+- `scripts/datagen/generate_object_poses.py`
+- `scripts/datagen/check_object_poses.py`
 
-```bash
-make launch-isaaclab
-```
+---
 
-This builds the Isaac Sim container. On success, the shell drops you inside the container.
+## 修改的主要檔案與功能
+### 新增檔案
 
-Download the session directory produced by the UMI pipeline:
+- `packages/simulator/src/simulator/assets/scenes/bathroom.py`
+  - 定義 bathroom scene 資產入口
+- `packages/simulator/src/simulator/tasks/pump_bottle_press/__init__.py`
+  - 註冊 `HCIS-PumpBottlePress-SingleArm-v0`
+- `packages/simulator/src/simulator/tasks/pump_bottle_press/pump_bottle_press_env_cfg.py`
+  - 任務主環境設定、成功條件、object pose 設定
+- `packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py`
+  - `pump_bottle_press` 的 FSM 資料生成邏輯
+- `scripts/datagen/generate_object_poses.py`
+  - 產生 synthetic `object_poses.json`
+- `scripts/datagen/check_object_poses.py`
+  - 驗證 synthetic `object_poses.json` 是否可被 loader 正確解析
 
-```bash
-hf download ${HF_USER}/<repo_id> --local-dir data/<demo_directory_name>
-```
+### 更新檔案
 
-## Run the data generation pipeline
+- `packages/simulator/src/simulator/tasks/__init__.py`
+  - 匯入並註冊新 task
+- `scripts/datagen/generate.py`
+  - 把 `PumpBottlePressStateMachine` 接入 `TASK_REGISTRY`
 
-The `--lerobot_dataset_repo_id` should be your own Hugging Face dataset repo.
+---
 
-Available tasks:
-
-- `HCIS-CupStacking-SingleArm-v0`
-- `HCIS-CutleryArrangement-SingleArm-v0`
-- `HCIS-ToyBlocksCollection-SingleArm-v0`
-
-```bash
-python scripts/datagen/generate.py \
-    --task HCIS-CupStacking-SingleArm-v0 \
-    --num_envs 1 \
-    --device cuda \
-    --enable_cameras \
-    --record \
-    --use_lerobot_recorder \
-    --lerobot_dataset_repo_id ${HF_USER}/<repo_id> \
-    --object_poses data/<demo_directory_name>/object_poses.json
-```
-
-Upload the recorded dataset to Hugging Face Hub:
-
-```bash
-hf upload ${HF_USER}/<repo_id> ~/.cache/huggingface/lerobot/${HF_USER}/<repo_id>/
-```
-
-# LeRobot Training
-
-Training runs on the **host machine** (not inside Docker) and produces a policy checkpoint from your generated dataset. Requires an Nvidia GPU.
-
-See [LeRobot Training Procedure](docs/lerobot_training.md) for the full command reference, multi-GPU setup, and troubleshooting.
-
-# LeRobot Rollout
-
-Rollout loads your trained policy into the Isaac Lab simulator (inside the Docker container) to evaluate robot performance.
-
-See [LeRobot Rollout (Policy Evaluation)](docs/lerobot_rollout.md) for the full procedure.
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [Getting Started](docs/getting_started.md) | End-to-end pipeline walkthrough |
-| [Developer Introduction](docs/dev/introduction.md) | Repo layout, environment setup, where to run what |
-| [Isaac Lab + LeIsaac Configuration Tutorial](docs/isaaclab_leisaac_tutorial.md) | Configuring Isaac Lab with LeIsaac |
-| [LeRobot Dataset Visualizer](docs/lerobot_dataset_visualizer.md) | Visualizing LeRobot datasets |
-| [LeRobot Checkpoint Format](docs/lerobot_model_format.md) | Understanding LeRobot model checkpoint structure |
-| [LeRobot Rollout (Policy Evaluation)](docs/lerobot_rollout.md) | Running trained policies in the simulator |
-| [LeRobot Training Procedure](docs/lerobot_training.md) | Training imitation-learning policies |
-| [Standalone Env Config Export](docs/standalone_env_config_export.md) | Exporting environment configs as standalone files |
-| [Synthetic Data Generation Pipeline](docs/synthetic_data_generation.md) | Generating synthetic training data |
-| [UMI Pipeline](docs/umi_pipeline.md) | Data collection and processing with UMI |
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+## 備註
+其他細節與後續待辦請參考：
+  - [TODO.md](TODO.md)
