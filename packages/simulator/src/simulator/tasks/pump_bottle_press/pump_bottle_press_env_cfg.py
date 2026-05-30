@@ -82,6 +82,7 @@ class PumpBottlePressSceneCfg(SingleArmFrankaTaskSceneCfg):
             pos=PUMP_BOTTLE_INIT_POS,
             rot=(1.0, 0.0, 0.0, 0.0),
         ),
+        actuators={},
     )
 
 
