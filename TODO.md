@@ -124,21 +124,60 @@ python scripts/teleop.py \
     --enable_cameras
 ```
 
+#### 在正式錄成dataset時加上以下options:
+```bash
+    --record \
+    --use_lerobot_recorder \
+    --lerobot_dataset_repo_id ${HF_USER}/<repo_id> \
+    --num_demos 10
+```
+
+每個episode的操作流程:
+
+1. 操控機器手臂完成任務
+2. 按 `N` 標記任務成功
+3. 或按 `R` 來捨棄並重新錄製
+
+設定 `--num_demos 0` :取消episode數量限制 (按 Ctrl+C 停止); 加上 `--resume` 選項: 將結果併入已存在的dataset。
+
+#### 可調的flags
+
+| Flag | Purpose |
+|------|---------|
+| `--sensitivity <float>` | Scale translation + rotation step sizes |
+| `--step_hz <int>` | Environment stepping rate (default 60) |
+| `--seed <int>` | Deterministic env seed |
+| `--quality` | Enable high-quality render mode (FXAA) |
+
+See `scripts/teleop.py --help` for the full list.
+
 ### 2. teleop 操作
 
-- 平移：
-  - `W / S`
-  - `A / D`
-  - `J / K`
-- 旋轉：
-  - `H / L`
-  - `U / I`
-  - `Q / E`
-- 夾爪：
-  - `C` 打開
-  - `M` 關閉
-- reset：
-  - `R`
+#### 平移
+| Key | Axis |
+|-----|------|
+| `W` / `S` | +x / -x |
+| `A` / `D` | +y / -y |
+| `J` / `K` | +z / -z |
+
+#### 旋轉
+| Key | Axis |
+|-----|------|
+| `H` / `L` | roll- / roll+ |
+| `U` / `I` | pitch- / pitch+ |
+| `Q` / `E` | yaw- / yaw+ |
+
+#### 夾爪
+| Key | Action |
+|-----|--------|
+| `C` | 打開 |
+| `M` | 關閉 |
+
+#### 控制
+| Key | Action |
+|-----|--------|
+| `R` | Reset environment / advance to next replay episode |
+| `N` | Mark current episode as success (when recording) |
 
 先點 Isaac Sim 視窗，確保鍵盤焦點在 viewport。
 
