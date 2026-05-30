@@ -177,6 +177,7 @@ python scripts/teleop.py \
 #### 控制
 | Key | Action |
 |-----|--------|
+| `B` | Start to control robot arm |
 | `R` | Reset environment / advance to next replay episode |
 | `N` | Mark current episode as success (when recording) |
 
