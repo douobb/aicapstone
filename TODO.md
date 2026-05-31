@@ -424,3 +424,19 @@ python scripts/datagen/generate.py \
   `packages/simulator/src/simulator/tasks/pump_bottle_press/pump_bottle_press_env_cfg.py`
   裡的 `PUMP_BOTTLE_USD_PATH`
 - 或至少要把檔名改成目前 env cfg 實際引用的正確名稱
+
+### 補充：作業平面範圍
+
+- 依 `bathroom/scene.usd` 中的 `/world/counter_right_main_group/geometry_0` 推估，
+  目前主要作業平面約為：
+  - `x ≈ 0.0032 ~ 0.7032`
+  - `y ≈ -0.6768 ~ -0.0268`
+  - 上表面 `z ≈ 0.0409`
+- 目前 `pump_bottle` 基準位置 `PUMP_BOTTLE_INIT_POS = (0.56, -0.38, 0.00)` 落在這塊 counter 的合理工作區內。
+- 建議第一版安全工作區先縮小為：
+  - `PUMP_BOTTLE_RANDOM_X_RANGE = (-0.06, 0.06)`
+  - `PUMP_BOTTLE_RANDOM_Y_RANGE = (-0.06, 0.06)`
+- 這組範圍可同時用在：
+  - `pump_bottle_press_env_cfg.py` 的 reset randomization
+  - `scripts/datagen/generate_object_poses.py` 的 `--x_min --x_max --y_min --y_max`
+- 若之後在 Isaac Sim 內量到更精確的檯面邊界，再同步更新上述兩處設定。

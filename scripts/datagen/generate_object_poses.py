@@ -50,25 +50,25 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--x_min",
         type=float,
-        default=-0.03,
+        default=-0.06,
         help="anchor frame 下 tvec[0] 最小值。",
     )
     parser.add_argument(
         "--x_max",
         type=float,
-        default=0.03,
+        default=0.06,
         help="anchor frame 下 tvec[0] 最大值。",
     )
     parser.add_argument(
         "--y_min",
         type=float,
-        default=-0.03,
+        default=-0.06,
         help="anchor frame 下 tvec[1] 最小值。",
     )
     parser.add_argument(
         "--y_max",
         type=float,
-        default=0.03,
+        default=0.06,
         help="anchor frame 下 tvec[1] 最大值。",
     )
     parser.add_argument(
