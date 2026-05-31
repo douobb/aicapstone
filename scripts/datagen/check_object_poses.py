@@ -5,13 +5,14 @@ from __future__ import annotations
 import argparse
 import math
 
-from simulator.tasks.pump_bottle_press.pump_bottle_press_env_cfg import (
-    ANCHOR_TAG_ID,
-    ANCHOR_WORLD_POSE,
-    OBJECT_Z,
-    TAG_TO_OBJECT,
-)
 from simulator.utils.object_poses_loader import ObjectPoseConfig, load_episode_poses
+
+# 直接在此定義 pump_bottle_press 目前使用的 object pose 設定，
+# 避免 import env cfg 時把 Isaac Lab / Omniverse 依賴整串帶進來。
+TAG_TO_OBJECT = {1: "pump_bottle"}
+ANCHOR_TAG_ID = 13
+ANCHOR_WORLD_POSE = (0.56, -0.38, 0.0)
+OBJECT_Z = 0.0
 
 
 def build_argparser() -> argparse.ArgumentParser:

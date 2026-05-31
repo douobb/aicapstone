@@ -358,3 +358,69 @@ python scripts/datagen/generate.py \
 - 視需要補 mass / inertia
 - 產 dataset 後訓練 baseline policy
 - 用 rollout 驗證成功率
+
+## 0531修改
+
+- `pump_bottle_press_env_cfg.py`
+  - 保留 `actuators={}`，確認 bottle articulation 可正常運作
+  - 恢復 reset randomization，供 teleop smoke test 使用
+  - 可調參數：
+    - `PUMP_BOTTLE_INIT_POS`
+    - `PUMP_BOTTLE_RANDOM_X_RANGE`
+    - `PUMP_BOTTLE_RANDOM_Y_RANGE`
+    - `PUMP_BOTTLE_RANDOM_YAW_RANGE_DEG`
+  - 以上會影響 bottle 初始化的基準位置、平面隨機範圍與朝向隨機範圍
+  - 保留 `object_pose_cfg`，供 datagen 使用 `object_poses.json`
+- `check_object_poses.py`
+  - 改成不再 import env cfg
+  - 直接在腳本內定義：
+    - `TAG_TO_OBJECT`
+    - `ANCHOR_TAG_ID`
+    - `ANCHOR_WORLD_POSE`
+    - `OBJECT_Z`
+  - 目的：避免不必要載入 Isaac Lab / Omniverse 依賴鏈
+- `tune_pump_bottle_usd.py`
+  - 新增 USD 調參腳本
+  - 可直接修改：
+    - `stiffness`
+    - `damping`
+    - `targetPosition`
+  - 並另存成新的 tuned USD
+- `model_pressure_pump_3_tuned.usd`
+  - 已產生 tuned 版資產
+  - 目前確認修改成功：
+    - `stiffness: 80.0 -> 60.0`
+    - `damping: 5.0 -> 10.0`
+    - `targetPosition: 0.0`（維持不變）
+- `README.md`
+  - 補上 tuned 版 USD 工具與額外物理參數說明
+
+目前建議：
+
+- teleop smoke test 可先比較：
+  - 原始版 `model_pressure_pump_3.usd`
+  - 調整版 `model_pressure_pump_3_tuned.usd`
+
+### `tune_pump_bottle_usd.py` 可指定參數
+
+- `--input`
+  - 原始 USD 路徑
+- `--output`
+  - 調整後輸出的 USD 路徑
+- `--stiffness`
+  - 回彈剛性
+  - 數值越大，回彈越硬、越強
+- `--damping`
+  - 回彈阻尼
+  - 數值越大，回彈越穩、越不容易震盪
+- `--target_position`
+  - 回彈目標位置
+  - 一般維持 `0.0`，代表未按壓時的上限位置
+
+特別注意：
+
+- 之後若要改用調整後的 USD，
+  **要記得同步修改**
+  `packages/simulator/src/simulator/tasks/pump_bottle_press/pump_bottle_press_env_cfg.py`
+  裡的 `PUMP_BOTTLE_USD_PATH`
+- 或至少要把檔名改成目前 env cfg 實際引用的正確名稱

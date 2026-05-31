@@ -66,6 +66,7 @@
 主 USD：
 
 - `packages/simulator/assets/scenes/bathroom/objects/pump_bottle/model_pressure_pump_3.usd`
+- `packages/simulator/assets/scenes/bathroom/objects/pump_bottle/model_pressure_pump_3_tuned.usd`
 
 已確認的重要物理資訊：
 
@@ -101,10 +102,11 @@ FSM 目前包含 phases：
 
 - `scripts/datagen/generate.py`
 
-另外新增 synthetic pose 工具：
+另外新增 synthetic pose 與資產調參工具：
 
 - `scripts/datagen/generate_object_poses.py`
 - `scripts/datagen/check_object_poses.py`
+- `scripts/tune_pump_bottle_usd.py`
 
 ---
 
@@ -123,6 +125,10 @@ FSM 目前包含 phases：
   - 產生 synthetic `object_poses.json`
 - `scripts/datagen/check_object_poses.py`
   - 驗證 synthetic `object_poses.json` 是否可被 loader 正確解析
+- `scripts/tune_pump_bottle_usd.py`
+  - 修改 pump bottle USD 內的 joint drive 參數並另存新檔
+- `packages/simulator/assets/scenes/bathroom/objects/pump_bottle/model_pressure_pump_3_tuned.usd`
+  - 調整過回彈參數的測試用資產
 
 ### 更新檔案
 

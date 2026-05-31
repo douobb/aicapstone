@@ -4,13 +4,16 @@ import isaaclab.sim as sim_utils
 import torch
 
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass
+from isaaclab.utils.math import quat_from_euler_xyz
 
 from leisaac.utils.general_assets import parse_usd_and_create_subassets
 from simulator import ASSETS_ROOT
 from simulator.assets.scenes.bathroom import BATHROOM_CFG, BATHROOM_USD_PATH
 from simulator.tasks.template.single_arm_franka_cfg import (
+    SingleArmFrankaEventCfg,
     SingleArmFrankaObservationsCfg,
     SingleArmFrankaTaskEnvCfg,
     SingleArmFrankaTaskSceneCfg,
@@ -30,6 +33,9 @@ BOTTLE_MAX_TILT_DEG = 20.0
 BOTTLE_MIN_UP_DOT = math.cos(math.radians(BOTTLE_MAX_TILT_DEG))
 
 PUMP_BOTTLE_INIT_POS = (0.56, -0.38, 0.00)
+PUMP_BOTTLE_RANDOM_X_RANGE = (-0.03, 0.03)
+PUMP_BOTTLE_RANDOM_Y_RANGE = (-0.03, 0.03)
+PUMP_BOTTLE_RANDOM_YAW_RANGE_DEG = 15.0
 
 TAG_TO_OBJECT = {1: "pump_bottle"}
 ANCHOR_TAG_ID = 13
@@ -43,6 +49,50 @@ def _quat_up_dot_wxyz(quat_wxyz: torch.Tensor) -> torch.Tensor:
     x = quat_wxyz[:, 1]
     y = quat_wxyz[:, 2]
     return 1.0 - 2.0 * (x * x + y * y)
+
+
+def randomize_pump_bottle_pose(
+    env,
+    bottle_name: str,
+    x_range: tuple[float, float],
+    y_range: tuple[float, float],
+    yaw_range_deg: float,
+    base_pos: tuple[float, float, float],
+    env_ids: torch.Tensor | None = None,
+) -> None:
+    """在 reset 後對 pump bottle 做小範圍位置與 yaw 隨機化。"""
+
+    if env_ids is None:
+        env_ids = torch.arange(env.num_envs, device=env.device, dtype=torch.long)
+    if env_ids.numel() == 0:
+        return
+
+    bottle = env.scene[bottle_name]
+    count = env_ids.numel()
+    base_x, base_y, base_z = base_pos
+
+    x = torch.empty(count, device=env.device).uniform_(x_range[0], x_range[1]) + base_x
+    y = torch.empty(count, device=env.device).uniform_(y_range[0], y_range[1]) + base_y
+    yaw = torch.empty(count, device=env.device).uniform_(
+        -math.radians(yaw_range_deg), math.radians(yaw_range_deg)
+    )
+
+    roll = torch.zeros(count, device=env.device)
+    pitch = torch.zeros(count, device=env.device)
+    quat = quat_from_euler_xyz(roll, pitch, yaw).to(dtype=torch.float32)
+
+    pose = torch.zeros((count, 7), device=env.device, dtype=torch.float32)
+    pose[:, 0] = x
+    pose[:, 1] = y
+    pose[:, 2] = base_z
+    pose[:, 3:] = quat
+
+    bottle.write_root_pose_to_sim(pose, env_ids=env_ids)
+
+    joint_pos = bottle.data.joint_pos[env_ids].clone()
+    joint_vel = torch.zeros_like(joint_pos)
+    joint_pos.zero_()
+    bottle.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
 
 
 def pump_button_pressed(
@@ -87,6 +137,23 @@ class PumpBottlePressSceneCfg(SingleArmFrankaTaskSceneCfg):
 
 
 @configclass
+class EventCfg(SingleArmFrankaEventCfg):
+    """Pump bottle press 任務的 reset event 設定。"""
+
+    randomize_pump_bottle = EventTerm(
+        func=randomize_pump_bottle_pose,
+        mode="reset",
+        params={
+            "bottle_name": "pump_bottle",
+            "x_range": PUMP_BOTTLE_RANDOM_X_RANGE,
+            "y_range": PUMP_BOTTLE_RANDOM_Y_RANGE,
+            "yaw_range_deg": PUMP_BOTTLE_RANDOM_YAW_RANGE_DEG,
+            "base_pos": PUMP_BOTTLE_INIT_POS,
+        },
+    )
+
+
+@configclass
 class TerminationsCfg(SingleArmFrankaTerminationsCfg):
     """Pump bottle press 任務的終止條件設定。"""
 
@@ -106,6 +173,7 @@ class PumpBottlePressEnvCfg(SingleArmFrankaTaskEnvCfg):
     """Pump bottle press 任務的環境設定。"""
 
     scene: PumpBottlePressSceneCfg = PumpBottlePressSceneCfg(env_spacing=8.0)
+    events: EventCfg = EventCfg()
     observations: SingleArmFrankaObservationsCfg = SingleArmFrankaObservationsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     task_description: str = "press the pump bottle once."
