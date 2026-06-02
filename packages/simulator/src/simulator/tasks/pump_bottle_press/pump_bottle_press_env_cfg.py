@@ -32,10 +32,12 @@ PUMP_PRESS_THRESHOLD = -0.015
 BOTTLE_MAX_TILT_DEG = 20.0
 BOTTLE_MIN_UP_DOT = math.cos(math.radians(BOTTLE_MAX_TILT_DEG))
 
-PUMP_BOTTLE_INIT_POS = (0.56, -0.38, 0.00)
-PUMP_BOTTLE_RANDOM_X_RANGE = (-0.06, 0.06)
-PUMP_BOTTLE_RANDOM_Y_RANGE = (-0.06, 0.06)
-PUMP_BOTTLE_RANDOM_YAW_RANGE_DEG = 15.0
+PUMP_BOTTLE_INIT_POS = (0.35, -0.35, 0.00)
+PUMP_BOTTLE_RANDOM_X_RANGE = (-0.25, 0.25)
+PUMP_BOTTLE_RANDOM_Y_RANGE = (-0.25, 0.25)
+PUMP_BOTTLE_RANDOM_YAW_RANGE_DEG = 180.0
+
+PUMP_BOTTLE_NAME = "pump_bottle"
 
 TAG_TO_OBJECT = {1: "pump_bottle"}
 ANCHOR_TAG_ID = 13
@@ -61,6 +63,7 @@ def randomize_pump_bottle_pose(
     env_ids: torch.Tensor | None = None,
 ) -> None:
     """在 reset 後對 pump bottle 做小範圍位置與 yaw 隨機化。"""
+    bottle_name = PUMP_BOTTLE_NAME
 
     if env_ids is None:
         env_ids = torch.arange(env.num_envs, device=env.device, dtype=torch.long)
@@ -103,6 +106,7 @@ def pump_button_pressed(
     min_up_dot: float,
 ) -> torch.Tensor:
     """成功條件：pump joint 被壓下，且瓶身仍保持直立。"""
+    bottle_name = PUMP_BOTTLE_NAME
 
     bottle = env.scene[bottle_name]
     joint_ids, _ = bottle.find_joints([joint_name])
@@ -136,6 +140,7 @@ class PumpBottlePressSceneCfg(SingleArmFrankaTaskSceneCfg):
     )
 
 
+
 @configclass
 class EventCfg(SingleArmFrankaEventCfg):
     """Pump bottle press 任務的 reset event 設定。"""
@@ -144,7 +149,7 @@ class EventCfg(SingleArmFrankaEventCfg):
         func=randomize_pump_bottle_pose,
         mode="reset",
         params={
-            "bottle_name": "pump_bottle",
+            # "bottle_name": PUMP_BOTTLE_NAME,
             "x_range": PUMP_BOTTLE_RANDOM_X_RANGE,
             "y_range": PUMP_BOTTLE_RANDOM_Y_RANGE,
             "yaw_range_deg": PUMP_BOTTLE_RANDOM_YAW_RANGE_DEG,
@@ -160,7 +165,7 @@ class TerminationsCfg(SingleArmFrankaTerminationsCfg):
     success = DoneTerm(
         func=pump_button_pressed,
         params={
-            "bottle_name": "pump_bottle",
+            # "bottle_name": "pump_bottle",
             "joint_name": PUMP_PRESS_JOINT_NAME,
             "press_threshold": PUMP_PRESS_THRESHOLD,
             "min_up_dot": BOTTLE_MIN_UP_DOT,
