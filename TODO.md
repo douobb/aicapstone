@@ -292,38 +292,39 @@ python scripts/datagen/generate.py \
 - `object_poses.json` 目前是 datagen 的主要初始化來源
 
 #### datagen 階段可調參數
+都在 `packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` 內部
 
 - FSM 按壓幾何
-  - `_PUMP_HEAD_XY_OFFSET`
-  - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L49
-  - `_HOVER_Z_OFFSET`
-  - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L43
-  - `_ALIGN_Z_OFFSET`
-  - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L44
-  - `_PRESS_START_Z_OFFSET`
-  - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L45
-  - `_PRESS_TARGET_Z_OFFSET`
-  - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L46
-  - `_RETREAT_Z_OFFSET`
-  - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L47
+  - `_PUMP_HEAD_XY_OFFSET` (L49)
+    - 修正按壓頭中心相對 `E_pump_1` body origin 的平面偏移，決定是否真的壓在 nozzle / 按壓面正中央
+  - `_HOVER_Z_OFFSET` (L43)
+    - `move_above` 階段的安全高度，避免一開始低空橫移撞到瓶子
+  - `_ALIGN_Z_OFFSET` (L44)
+    - `align` 階段的低空對位高度，影響正式下壓前的精細對準穩定度
+  - `_PRESS_START_Z_OFFSET` (L45)
+    - `descend` 階段接近按壓面的起始高度，太高會提早進 press，太低容易直接撞上去
+  - `_PRESS_TARGET_Z_OFFSET` (L46)
+    - `press` / `hold` 階段的實際按壓目標高度，直接影響是否能壓到 success threshold
+  - `_RETREAT_Z_OFFSET` (L47)
+    - `retreat` 階段離開瓶子的高度，避免放開後仍停在瓶子上方干擾下一步
 - FSM 姿態與夾爪
-  - `_PRESS_GRIPPER_CMD`
-  - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L37
-  - `_GRIPPER_DOWN_YAW_OFFSET_RANGE`
-  - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L53
+  - `_PRESS_GRIPPER_CMD` (L37)
+    - 按壓時夾爪是張開還是閉合；目前預設閉合，增加接觸面積與穩定性
+  - `_GRIPPER_DOWN_YAW_OFFSET_RANGE` (L53)
+    - 末端朝下時額外加入的 yaw 擾動範圍；太大會讓接觸面不穩，太小則缺乏姿態容忍度
 - FSM 速度與姿態收斂
-  - `_MAX_CARTESIAN_DELTA`
-  - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L40
-  - `_MAX_ROT_DELTA`
-  - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L41
+  - `_MAX_CARTESIAN_DELTA` (L40)
+    - 單一步驟允許的最大平移量；太小會來不及到位，太大會讓軌跡不穩
+  - `_MAX_ROT_DELTA` (L41)
+    - 單一步驟允許的最大姿態旋轉量；影響對位時的姿態收斂速度與穩定性
 - FSM 成功條件
-  - `_SUCCESS_PRESS_THRESHOLD`
-  - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L55
-  - `_SUCCESS_MAX_TILT_DEG`
-  - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L56
+  - `_SUCCESS_PRESS_THRESHOLD` (L55)
+    - press joint 需要壓到的門檻值；越負代表要壓得越深
+  - `_SUCCESS_MAX_TILT_DEG` (L56)
+    - 允許瓶身傾斜的最大角度；控制「按下但不能把瓶子推倒」的標準
 - FSM 節奏
-  - `_PHASE_DURATIONS`
-  - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L72
+  - `_PHASE_DURATIONS` (L72)
+    - 各 phase 的固定步數長度，決定 FSM 是不是有足夠時間完成 move_above / align / descend / press 等動作
 
 建議優先調整順序：
 
