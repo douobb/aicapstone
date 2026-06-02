@@ -21,6 +21,7 @@ from leisaac.datagen.state_machine.base import StateMachineBase
 # ---------------------------------------------------------------------------
 _PUMP_BOTTLE_NAME = "pump_bottle"
 _PUMP_PRESS_JOINT_NAME = "PrismaticJoint_Pressure_pump_3_up"
+_PUMP_HEAD_BODY_NAME = "E_pump_1"
 _EE_BODY_NAME = "panda_hand"
 _FRANKA_ARM_JOINT_NAMES = (
     "panda_joint1",
@@ -69,7 +70,7 @@ _FRANKA_REST_JOINT_POS = {
 }
 
 # move_above, align, descend, press, hold, release_up, retreat
-_PHASE_DURATIONS = (120, 60, 40, 40, 20, 30, 30)
+_PHASE_DURATIONS = (180, 120, 80, 50, 25, 40, 40)
 
 
 def _constant_gripper(num_envs: int, device: torch.device, value: float) -> torch.Tensor:
@@ -126,6 +127,7 @@ class PumpBottlePressStateMachine(StateMachineBase):
         self._episode_done: bool = False
         self._ee_body_idx: int = -1
         self._jacobi_body_idx: int = -1
+        self._pump_head_body_idx: int = -1
         self._arm_joint_ids: list[int] = []
         self._jacobi_joint_ids: list[int] = []
         self._press_joint_idx: int = -1
@@ -167,6 +169,9 @@ class PumpBottlePressStateMachine(StateMachineBase):
         if len(bottle_joint_ids) != 1:
             raise ValueError(f"Could not resolve exactly one joint named {_PUMP_PRESS_JOINT_NAME!r}")
         self._press_joint_idx = int(bottle_joint_ids[0])
+        self._pump_head_body_idx = _find_body_index(bottle, _PUMP_HEAD_BODY_NAME)
+        if self._pump_head_body_idx < 0:
+            raise ValueError(f"Could not find required pump-head body '{_PUMP_HEAD_BODY_NAME}' in bottle bodies.")
 
         self._rest_joint_pos = torch.zeros(env.num_envs, len(joint_names), device=env.device)
         for idx, name in enumerate(joint_names):
@@ -201,30 +206,32 @@ class PumpBottlePressStateMachine(StateMachineBase):
         if self._step_count == 0 and self._event == 0:
             self._initial_ee_pos_w = self._ee_pos_w(robot).clone()
 
-        bottle_target_w = bottle.data.root_pos_w.clone()
-        bottle_target_w[:, 0] += _PUMP_HEAD_XY_OFFSET[0]
-        bottle_target_w[:, 1] += _PUMP_HEAD_XY_OFFSET[1]
+        # 以可動的 pump head body 為基準，比用 articulation root 更接近真正的按壓目標。
+        pump_head_pos_w = self._pump_head_pos_w(bottle).clone()
+        pump_head_target_w = pump_head_pos_w.clone()
+        pump_head_target_w[:, 0] += _PUMP_HEAD_XY_OFFSET[0]
+        pump_head_target_w[:, 1] += _PUMP_HEAD_XY_OFFSET[1]
 
         target_quat_w = self._gripper_down_quat_w(
-            bottle.data.root_quat_w, num_envs, device, bottle.data.root_quat_w.dtype
+            self._pump_head_quat_w(bottle), num_envs, device, bottle.data.root_quat_w.dtype
         )
 
         if self._event == 0:
-            target_pos_w, gripper_cmd = self._phase_move_above_pump(bottle_target_w, num_envs, device)
+            target_pos_w, gripper_cmd = self._phase_move_above_pump(pump_head_target_w, num_envs, device)
         elif self._event == 1:
-            target_pos_w, gripper_cmd = self._phase_align_over_head(bottle_target_w, num_envs, device)
+            target_pos_w, gripper_cmd = self._phase_align_over_head(pump_head_target_w, num_envs, device)
         elif self._event == 2:
             target_pos_w, gripper_cmd = self._phase_descend_to_press_start(
-                bottle_target_w, num_envs, device
+                pump_head_target_w, num_envs, device
             )
         elif self._event == 3:
-            target_pos_w, gripper_cmd = self._phase_press_down(bottle_target_w, num_envs, device)
+            target_pos_w, gripper_cmd = self._phase_press_down(pump_head_target_w, num_envs, device)
         elif self._event == 4:
-            target_pos_w, gripper_cmd = self._phase_hold_press(bottle_target_w, num_envs, device)
+            target_pos_w, gripper_cmd = self._phase_hold_press(pump_head_target_w, num_envs, device)
         elif self._event == 5:
-            target_pos_w, gripper_cmd = self._phase_release_up(bottle_target_w, num_envs, device)
+            target_pos_w, gripper_cmd = self._phase_release_up(pump_head_target_w, num_envs, device)
         else:
-            target_pos_w, gripper_cmd = self._phase_retreat(bottle_target_w, num_envs, device)
+            target_pos_w, gripper_cmd = self._phase_retreat(pump_head_target_w, num_envs, device)
 
         return self._joint_position_franka_action(env, target_pos_w, target_quat_w, gripper_cmd)
 
@@ -303,6 +310,16 @@ class PumpBottlePressStateMachine(StateMachineBase):
     def _ee_quat_w(self, robot) -> torch.Tensor:
         body_idx = self._ee_body_idx if self._ee_body_idx >= 0 else -1
         return robot.data.body_quat_w[:, body_idx, :]
+
+    def _pump_head_pos_w(self, bottle) -> torch.Tensor:
+        if self._pump_head_body_idx < 0:
+            raise RuntimeError("PumpBottlePressStateMachine.setup() must run before requesting actions.")
+        return bottle.data.body_pos_w[:, self._pump_head_body_idx, :]
+
+    def _pump_head_quat_w(self, bottle) -> torch.Tensor:
+        if self._pump_head_body_idx < 0:
+            raise RuntimeError("PumpBottlePressStateMachine.setup() must run before requesting actions.")
+        return bottle.data.body_quat_w[:, self._pump_head_body_idx, :]
 
     def _joint_position_franka_action(
         self,

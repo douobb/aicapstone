@@ -440,3 +440,47 @@ python scripts/datagen/generate.py \
   - `pump_bottle_press_env_cfg.py` 的 reset randomization
   - `scripts/datagen/generate_object_poses.py` 的 `--x_min --x_max --y_min --y_max`
 - 若之後在 Isaac Sim 內量到更精確的檯面邊界，再同步更新上述兩處設定。
+
+## 0603修改
+
+- `packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py`
+  - FSM 的目標基準從 `bottle.data.root_pos_w` 改為可動按壓頭 `E_pump_1`
+  - 新增 `_PUMP_HEAD_BODY_NAME = "E_pump_1"`
+  - `setup()` 內新增 `self._pump_head_body_idx`
+  - 新增 helper：
+    - `_pump_head_pos_w()`
+    - `_pump_head_quat_w()`
+  - 所有 phase 的目標位置改為以 `pump head` 為基準，而不是整顆 bottle 的 articulation root
+  - gripper 朝向也改為參考 `pump head` 的 quaternion
+- `_PHASE_DURATIONS`
+  - 由原本：
+    - `(120, 60, 40, 40, 20, 30, 30)`
+  - 調整為：
+    - `(180, 120, 80, 50, 25, 40, 40)`
+  - 目的：
+    - 增加 `move_above / align / descend` 的時間
+    - 避免還沒接近瓶子就提早進入 `press`
+
+### pump_bottle_press.py 狀態機步驟
+
+1. `move_above`
+   - 先移到 `pump head` 上方的安全高度
+   - 避免一開始低空橫移撞到瓶子
+2. `align`
+   - 在較低高度做最後一次對位
+   - 目標是把 end-effector 對到按壓頭正上方
+3. `descend`
+   - 從對位高度下降到按壓起始高度
+   - 這一段還不正式下壓，只是接近接觸面
+4. `press`
+   - 往下壓到目標按壓高度
+   - 這是主要的按壓動作
+5. `hold`
+   - 在按壓位置保持一小段時間
+   - 讓 joint 有機會穩定達到 success threshold
+6. `release_up`
+   - 往上回到較安全的高度
+   - 相當於放開按壓頭
+7. `retreat`
+   - 再抬高並離開瓶子
+   - 避免停在物體上方影響下一回合
