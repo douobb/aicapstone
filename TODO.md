@@ -311,6 +311,11 @@ python scripts/datagen/generate.py \
   - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L37
   - `_GRIPPER_DOWN_YAW_OFFSET_RANGE`
   - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L53
+- FSM 速度與姿態收斂
+  - `_MAX_CARTESIAN_DELTA`
+  - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L40
+  - `_MAX_ROT_DELTA`
+  - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L41
 - FSM 成功條件
   - `_SUCCESS_PRESS_THRESHOLD`
   - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L55
@@ -319,6 +324,23 @@ python scripts/datagen/generate.py \
 - FSM 節奏
   - `_PHASE_DURATIONS`
   - 位置：`packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py` L72
+
+建議優先調整順序：
+
+1. `_PUMP_HEAD_XY_OFFSET`
+   - 先確認是否真的對準按壓頭中心
+2. `_PRESS_START_Z_OFFSET`
+   - 確認接近高度是否合理
+3. `_PRESS_TARGET_Z_OFFSET`
+   - 確認實際按壓深度是否合理
+4. `_ALIGN_Z_OFFSET`
+   - 確認低空對位高度是否太高或太低
+5. `_PHASE_DURATIONS`
+   - 特別是 `move_above / align / descend`
+6. `_GRIPPER_DOWN_YAW_OFFSET_RANGE`
+   - 若接觸面不穩，可先縮小甚至暫時固定
+7. `_MAX_CARTESIAN_DELTA` / `_MAX_ROT_DELTA`
+   - 最後再調每步移動與旋轉速度上限
 
 ## 待辦
 
@@ -443,6 +465,8 @@ python scripts/datagen/generate.py \
 
 ## 0603修改
 
+- datagen 測試時，建議優先參考上方 `#### datagen 階段可調參數`
+  - 尤其是 `_PUMP_HEAD_XY_OFFSET`、各段 `Z_OFFSET`、`_PHASE_DURATIONS`
 - `packages/simulator/src/simulator/datagen/state_machine/pump_bottle_press.py`
   - FSM 的目標基準從 `bottle.data.root_pos_w` 改為可動按壓頭 `E_pump_1`
   - 新增 `_PUMP_HEAD_BODY_NAME = "E_pump_1"`
@@ -452,6 +476,7 @@ python scripts/datagen/generate.py \
     - `_pump_head_quat_w()`
   - 所有 phase 的目標位置改為以 `pump head` 為基準，而不是整顆 bottle 的 articulation root
   - gripper 朝向也改為參考 `pump head` 的 quaternion
+  - 移除未使用的 `_rest_ee_pos_w`
 - `_PHASE_DURATIONS`
   - 由原本：
     - `(120, 60, 40, 40, 20, 30, 30)`

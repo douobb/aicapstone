@@ -132,7 +132,6 @@ class PumpBottlePressStateMachine(StateMachineBase):
         self._jacobi_joint_ids: list[int] = []
         self._press_joint_idx: int = -1
         self._rest_joint_pos: torch.Tensor | None = None
-        self._rest_ee_pos_w: torch.Tensor | None = None
         self._initial_ee_pos_w: torch.Tensor | None = None
         self._gripper_down_yaw_w: torch.Tensor | None = None
         self._gripper_down_yaw_offset_w: torch.Tensor | None = None
@@ -184,7 +183,6 @@ class PumpBottlePressStateMachine(StateMachineBase):
         )
         env.sim.step(render=False)
         env.scene.update(dt=env.physics_dt)
-        self._rest_ee_pos_w = self._ee_pos_w(robot).clone()
 
     def check_success(self, env) -> bool:
         bottle = env.scene[_PUMP_BOTTLE_NAME]
