@@ -108,6 +108,10 @@ FSM 目前包含 phases：
 - `scripts/datagen/check_object_poses.py`
 - `scripts/tune_pump_bottle_usd.py`
 
+新增 evaluation env：
+
+- `eval/pump_bottle_press_eval.py`
+
 ---
 
 ## 修改的主要檔案與功能
@@ -127,6 +131,9 @@ FSM 目前包含 phases：
   - 驗證 synthetic `object_poses.json` 是否可被 loader 正確解析
 - `scripts/tune_pump_bottle_usd.py`
   - 修改 pump bottle USD 內的 joint drive 參數並另存新檔
+- `eval/pump_bottle_press_eval.py`
+  - rollout / evaluation 專用 env
+  - 以固定基準位置加上 `domain_randomization(...)` 做正式評估分布
 - `packages/simulator/assets/scenes/bathroom/objects/pump_bottle/model_pressure_pump_3_tuned.usd`
   - 調整過回彈參數的測試用資產
 

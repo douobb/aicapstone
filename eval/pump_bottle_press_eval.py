@@ -1,14 +1,16 @@
 import math
 
+import gymnasium as gym
 import isaaclab.sim as sim_utils
 import torch
-
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass
+from isaaclab.utils.seed import configure_seed
 
+from leisaac.utils.domain_randomization import domain_randomization, randomize_object_uniform
 from leisaac.utils.general_assets import parse_usd_and_create_subassets
-from simulator import ASSETS_ROOT
 from simulator.assets.scenes.bathroom import BATHROOM_CFG, BATHROOM_USD_PATH
 from simulator.tasks.template.single_arm_franka_cfg import (
     SingleArmFrankaObservationsCfg,
@@ -16,27 +18,18 @@ from simulator.tasks.template.single_arm_franka_cfg import (
     SingleArmFrankaTaskSceneCfg,
     SingleArmFrankaTerminationsCfg,
 )
-from simulator.utils.object_poses_loader import ObjectPoseConfig
 
-BATHROOM_OBJECTS_ROOT = ASSETS_ROOT / "scenes" / "bathroom" / "objects"
-PUMP_BOTTLE_USD_PATH = str(BATHROOM_OBJECTS_ROOT / "pump_bottle" / "model_pressure_pump_3.usd")
+from simulator.tasks.pump_bottle_press.pump_bottle_press_env_cfg import (
+    BOTTLE_MIN_UP_DOT,
+    PUMP_BOTTLE_INIT_POS,
+    PUMP_BOTTLE_NAME,
+    PUMP_BOTTLE_USD_PATH,
+    PUMP_PRESS_JOINT_NAME,
+    PUMP_PRESS_THRESHOLD,
+)
 
-# pump bottle 內已確認存在的 prismatic joint 名稱
-PUMP_PRESS_JOINT_NAME = "PrismaticJoint_Pressure_pump_3_up"
-# 總行程 0.02 中，先以按下約 75% 當成功門檻
-PUMP_PRESS_THRESHOLD = -0.015
-# 要求瓶身保持直立，先容許最多 20 度傾斜
-BOTTLE_MAX_TILT_DEG = 20.0
-BOTTLE_MIN_UP_DOT = math.cos(math.radians(BOTTLE_MAX_TILT_DEG))
 
-PUMP_BOTTLE_INIT_POS = (0.35, -0.35, 0.00)
-
-PUMP_BOTTLE_NAME = "pump_bottle"
-
-TAG_TO_OBJECT = {1: "pump_bottle"}
-ANCHOR_TAG_ID = 13
-ANCHOR_WORLD_POSE = (PUMP_BOTTLE_INIT_POS[0], PUMP_BOTTLE_INIT_POS[1], 0.0)
-OBJECT_Z = PUMP_BOTTLE_INIT_POS[2]
+configure_seed(42)
 
 
 def _quat_up_dot_wxyz(quat_wxyz: torch.Tensor) -> torch.Tensor:
@@ -49,15 +42,13 @@ def _quat_up_dot_wxyz(quat_wxyz: torch.Tensor) -> torch.Tensor:
 
 def pump_button_pressed(
     env,
-    # bottle_name: str,
     joint_name: str,
     press_threshold: float,
     min_up_dot: float,
 ) -> torch.Tensor:
     """成功條件：pump joint 被壓下，且瓶身仍保持直立。"""
-    bottle_name = PUMP_BOTTLE_NAME
 
-    bottle = env.scene[bottle_name]
+    bottle: Articulation = env.scene[PUMP_BOTTLE_NAME]
     joint_ids, _ = bottle.find_joints([joint_name])
     if len(joint_ids) != 1:
         raise ValueError(f"Could not resolve exactly one joint named {joint_name!r}")
@@ -69,19 +60,17 @@ def pump_button_pressed(
 
 
 @configclass
-class PumpBottlePressSceneCfg(SingleArmFrankaTaskSceneCfg):
-    """Pump bottle press 任務的場景設定。"""
+class PumpBottlePressEvalSceneCfg(SingleArmFrankaTaskSceneCfg):
+    """Pump bottle press rollout/eval 專用場景設定。"""
 
     scene: AssetBaseCfg = BATHROOM_CFG.replace(prim_path="{ENV_REGEX_NS}/Scene")
 
-    # 這裡必須使用 ArticulationCfg，因為 bottle 內部包含 prismatic joint
     pump_bottle: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Scene/pump_bottle",
         spawn=sim_utils.UsdFileCfg(
             usd_path=PUMP_BOTTLE_USD_PATH,
         ),
         init_state=ArticulationCfg.InitialStateCfg(
-            # 先給固定基準位置，真正的每回合差異由 reset randomization 產生
             pos=PUMP_BOTTLE_INIT_POS,
             rot=(1.0, 0.0, 0.0, 0.0),
         ),
@@ -90,13 +79,12 @@ class PumpBottlePressSceneCfg(SingleArmFrankaTaskSceneCfg):
 
 
 @configclass
-class TerminationsCfg(SingleArmFrankaTerminationsCfg):
-    """Pump bottle press 任務的終止條件設定。"""
+class EvalTerminationsCfg(SingleArmFrankaTerminationsCfg):
+    """Pump bottle press rollout/eval 專用終止條件。"""
 
     success = DoneTerm(
         func=pump_button_pressed,
         params={
-            # "bottle_name": "pump_bottle",
             "joint_name": PUMP_PRESS_JOINT_NAME,
             "press_threshold": PUMP_PRESS_THRESHOLD,
             "min_up_dot": BOTTLE_MIN_UP_DOT,
@@ -105,12 +93,12 @@ class TerminationsCfg(SingleArmFrankaTerminationsCfg):
 
 
 @configclass
-class PumpBottlePressEnvCfg(SingleArmFrankaTaskEnvCfg):
-    """Pump bottle press 任務的環境設定。"""
+class PumpBottlePressEvalEnvCfg(SingleArmFrankaTaskEnvCfg):
+    """Pump bottle press rollout/eval 專用環境設定。"""
 
-    scene: PumpBottlePressSceneCfg = PumpBottlePressSceneCfg(env_spacing=8.0)
+    scene: PumpBottlePressEvalSceneCfg = PumpBottlePressEvalSceneCfg(env_spacing=8.0)
     observations: SingleArmFrankaObservationsCfg = SingleArmFrankaObservationsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
+    terminations: EvalTerminationsCfg = EvalTerminationsCfg()
     task_description: str = "press the pump bottle once."
 
     def __post_init__(self) -> None:
@@ -134,11 +122,29 @@ class PumpBottlePressEnvCfg(SingleArmFrankaTaskEnvCfg):
             "panda_finger_joint2": 0.04,
         }
 
-        self.object_pose_cfg = ObjectPoseConfig(
-            tag_to_object=TAG_TO_OBJECT,
-            anchor_tag_id=ANCHOR_TAG_ID,
-            anchor_world_pose=ANCHOR_WORLD_POSE,
-            object_z=OBJECT_Z,
+        parse_usd_and_create_subassets(BATHROOM_USD_PATH, self)
+
+        domain_randomization(
+            self,
+            random_options=[
+                randomize_object_uniform(
+                    PUMP_BOTTLE_NAME,
+                    pose_range={
+                        "x": (-0.25, 0.25),
+                        "y": (-0.25, 0.25),
+                        "z": (0.0, 0.0),
+                        "yaw": (-math.pi, math.pi),
+                    },
+                ),
+            ],
         )
 
-        parse_usd_and_create_subassets(BATHROOM_USD_PATH, self)
+
+TASK_ID = "Private-PumpBottlePress-Eval-v0"
+
+gym.register(
+    id=TASK_ID,
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={"env_cfg_entry_point": f"{__name__}:PumpBottlePressEvalEnvCfg"},
+)

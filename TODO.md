@@ -89,7 +89,6 @@
 
 ## 重要待確認
 
-- bottle 的 mass / inertia 尚未明確設定
 - `_PUMP_HEAD_XY_OFFSET` 尚未靠實測校正
 - FSM 的各段 `Z_OFFSET` 與 phase duration 尚未實測校正
 - success threshold 與 tilt threshold 仍需實測確認
@@ -386,13 +385,6 @@ python scripts/datagen/generate.py \
 
 - `pump_bottle_press_env_cfg.py`
   - 保留 `actuators={}`，確認 bottle articulation 可正常運作
-  - 恢復 reset randomization，供 teleop smoke test 使用
-  - 可調參數：
-    - `PUMP_BOTTLE_INIT_POS`
-    - `PUMP_BOTTLE_RANDOM_X_RANGE`
-    - `PUMP_BOTTLE_RANDOM_Y_RANGE`
-    - `PUMP_BOTTLE_RANDOM_YAW_RANGE_DEG`
-  - 以上會影響 bottle 初始化的基準位置、平面隨機範圍與朝向隨機範圍
   - 保留 `object_pose_cfg`，供 datagen 使用 `object_poses.json`
 - `check_object_poses.py`
   - 改成不再 import env cfg
@@ -455,14 +447,8 @@ python scripts/datagen/generate.py \
   - `x ≈ 0.0032 ~ 0.7032`
   - `y ≈ -0.6768 ~ -0.0268`
   - 上表面 `z ≈ 0.0409`
-- 目前 `pump_bottle` 基準位置 `PUMP_BOTTLE_INIT_POS = (0.56, -0.38, 0.00)` 落在這塊 counter 的合理工作區內。
-- 建議第一版安全工作區先縮小為：
-  - `PUMP_BOTTLE_RANDOM_X_RANGE = (-0.06, 0.06)`
-  - `PUMP_BOTTLE_RANDOM_Y_RANGE = (-0.06, 0.06)`
-- 這組範圍可同時用在：
-  - `pump_bottle_press_env_cfg.py` 的 reset randomization
-  - `scripts/datagen/generate_object_poses.py` 的 `--x_min --x_max --y_min --y_max`
-- 若之後在 Isaac Sim 內量到更精確的檯面邊界，再同步更新上述兩處設定。
+- 目前主要拿來作為 `scripts/datagen/generate_object_poses.py` 產生 synthetic `object_poses.json` 時的工作區參考。
+- 若之後在 Isaac Sim 內量到更精確的檯面邊界，再同步更新 `generate_object_poses.py` 的 `x/y` 範圍。
 
 ## 0603修改
 
@@ -510,3 +496,55 @@ python scripts/datagen/generate.py \
 7. `retreat`
    - 再抬高並離開瓶子
    - 避免停在物體上方影響下一回合
+
+## 0604修改
+
+- `packages/simulator/src/simulator/tasks/pump_bottle_press/pump_bottle_press_env_cfg.py`
+  - 移除主 env 內建的 reset randomization
+  - 主 env 改回固定初始化，`pump_bottle` 預設以 `PUMP_BOTTLE_INIT_POS` 生成
+  - 保留 `object_pose_cfg`
+    - 供 `teleop.py --object_poses`
+    - 與 `scripts/datagen/generate.py --object_poses`
+    使用
+- `eval/pump_bottle_press_eval.py`
+  - 新增 rollout / evaluation 專用 env
+  - 設計方式與既有任務一致：
+    - 先給固定 `init_state`
+    - 再用 `domain_randomization(...)` 做 evaluation 分布
+  - 目前評估分布已與 `scripts/datagen/generate_object_poses.py` 預設一致：
+    - `x: (-0.25, 0.25)`
+    - `y: (-0.25, 0.25)`
+    - `z: (0.0, 0.0)`
+    - `yaw: (-pi, pi)`（弧度，等價於 `-180° ~ 180°`）
+  - 這樣 rollout 的 evaluation 分布與 synthetic `object_poses.json` 的預設分布一致
+
+### rollout 應改用的 task
+
+- 之後測試訓練後 policy 時，不建議再直接用主 task env 做 rollout
+- 應改用 evaluation task：
+  - `eval/pump_bottle_press_eval.py`
+- 對應 task id：
+  - `Private-PumpBottlePress-Eval-v0`
+
+### rollout 指令範例
+
+```bash
+python scripts/rollout.py \
+    --task=eval/pump_bottle_press_eval.py \
+    --policy_type=lerobot-<policy_name> \
+    --policy_checkpoint_path=<path/to/checkpoint> \
+    --policy_action_horizon=1 \
+    --device=cuda \
+    --enable_cameras \
+    --eval_rounds=<num_rounds> \
+    --episode_length_s=20
+```
+
+### 這次修改後的初始化責任分工
+
+- 主 task env：`pump_bottle_press_env_cfg.py`
+  - 固定初始化
+  - 給 teleop / datagen / object poses 使用
+- evaluation env：`eval/pump_bottle_press_eval.py`
+  - rollout 專用
+  - 用小範圍 `domain_randomization(...)` 評估 policy 成功率
