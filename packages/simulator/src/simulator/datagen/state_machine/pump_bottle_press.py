@@ -125,6 +125,7 @@ class PumpBottlePressStateMachine(StateMachineBase):
     def __init__(self) -> None:
         self._step_count: int = 0
         self._episode_done: bool = False
+        self._press_complete: bool = False  # mark press as successful
         self._ee_body_idx: int = -1
         self._jacobi_body_idx: int = -1
         self._pump_head_body_idx: int = -1
@@ -184,14 +185,21 @@ class PumpBottlePressStateMachine(StateMachineBase):
         env.sim.step(render=False)
         env.scene.update(dt=env.physics_dt)
 
-    def check_success(self, env) -> bool:
+    def check_press_complete(self, env) -> bool:
         bottle = env.scene[_PUMP_BOTTLE_NAME]
         pressed = bottle.data.joint_pos[:, self._press_joint_idx] <= _SUCCESS_PRESS_THRESHOLD
         upright = _quat_up_dot_wxyz(bottle.data.root_quat_w) >= _SUCCESS_MIN_UP_DOT
         return bool(torch.logical_and(pressed, upright).all().item())
 
+    def check_success(self, env) -> bool:
+        bottle = env.scene[_PUMP_BOTTLE_NAME]
+        sprung_back = bottle.data.joint_pos[:, self._press_joint_idx] >= -0.005  # the joint has sprung back
+        return self._press_complete and sprung_back
+
     def pre_step(self, env) -> None:
-        pass
+        if self._press_complete is False and self.check_press_complete(env):
+            self._press_complete = True
+        return
 
     def get_action(self, env) -> torch.Tensor:
         robot = env.scene["robot"]
@@ -249,6 +257,7 @@ class PumpBottlePressStateMachine(StateMachineBase):
     def reset(self) -> None:
         self._step_count = 0
         self._episode_done = False
+        self._press_complete = False
         self._event = 0
         self._initial_ee_pos_w = None
         self._gripper_down_yaw_w = None
