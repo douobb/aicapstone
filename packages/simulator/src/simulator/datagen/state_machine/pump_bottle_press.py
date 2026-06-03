@@ -51,7 +51,7 @@ _PUMP_HEAD_XY_OFFSET = (0.0, 0.0)
 
 _GRIPPER_DOWN_ROLL_W = math.pi
 _GRIPPER_DOWN_PITCH_W = 0.0
-_GRIPPER_DOWN_YAW_OFFSET_RANGE = (-0.10, 0.10)
+_GRIPPER_DOWN_YAW_OFFSET_RANGE = (-math.pi, math.pi)
 
 _SUCCESS_PRESS_THRESHOLD = -0.015
 _SUCCESS_MAX_TILT_DEG = 20.0
@@ -247,7 +247,9 @@ class PumpBottlePressStateMachine(StateMachineBase):
 
         self._step_count += 1
         if self._step_count < self._events_dt[self._event]:
-            return
+            # go to next event if pressing is complete
+            if not ((self._event == 2 or self._event == 3 or self._event == 4) and self._press_complete):
+                return
 
         self._event += 1
         self._step_count = 0
