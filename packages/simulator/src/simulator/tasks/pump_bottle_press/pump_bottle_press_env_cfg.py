@@ -100,7 +100,7 @@ def randomize_pump_bottle_pose(
 
 def pump_button_pressed(
     env,
-    bottle_name: str,
+    # bottle_name: str,
     joint_name: str,
     press_threshold: float,
     min_up_dot: float,
