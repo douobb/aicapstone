@@ -146,6 +146,75 @@ FSM 目前包含 phases：
 
 ---
 
-## 備註
-其他細節與後續待辦請參考：
-  - [TODO.md](TODO.md)
+## 執行步驟
+
+### Step 1. 環境準備
+
+```bash
+make submodules
+uv sync
+source .venv/bin/activate
+hf auth login --token <YOUR_HF_TOKEN>
+export HF_USER=<your-huggingface-username>
+```
+
+啟動 Isaac Lab container：
+
+```bash
+make launch-isaaclab-glowsai-4090
+# 或
+make launch-isaaclab-glowsai-l40s
+```
+
+### Step 2. Simulation Data Generation
+
+先產生 synthetic `object_poses.json`：
+
+```bash
+python scripts/datagen/generate_object_poses.py \
+    --num_samples 100 \
+    --output data/bathroom/object_poses.json
+```
+
+再執行 datagen：
+
+```bash
+python scripts/datagen/generate.py \
+    --task HCIS-PumpBottlePress-SingleArm-v0 \
+    --num_envs 1 \
+    --device cuda \
+    --enable_cameras \
+    --record \
+    --use_lerobot_recorder \
+    --lerobot_dataset_repo_id ${HF_USER}/<generated_dataset_repo> \
+    --object_poses data/bathroom/object_poses.json
+```
+
+### Step 3. Policy Training
+
+在 host 端訓練：
+
+```bash
+lerobot-train \
+  --dataset.repo_id=${HF_USER}/<generated_dataset_repo> \
+  --policy.type=diffusion \
+  --output_dir=output \
+  --job_name=pump_bottle_press \
+  --policy.device=cuda \
+  --wandb.enable=true \
+  --policy.repo_id=${HF_USER}/<policy_repo>
+```
+
+### Step 4. Rollout / Evaluation
+
+```bash
+python scripts/rollout.py \
+    --task=eval/pump_bottle_press_eval.py \
+    --policy_type=lerobot-diffusion \
+    --policy_checkpoint_path=<path/to/checkpoint> \
+    --policy_action_horizon=16 \
+    --device=cuda \
+    --enable_cameras \
+    --eval_rounds=10 \
+    --episode_length_s=30
+```
