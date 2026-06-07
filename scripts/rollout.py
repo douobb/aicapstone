@@ -531,18 +531,10 @@ def main():
 
 
     success_count, episode_count = 0, 1
-    count_debug = 0
     while max_episode_count <= 0 or episode_count <= max_episode_count:
         print(f"[Evaluation] Evaluating episode {episode_count}...")
         success, time_out = False, False
-        print(f"{count_debug=}")
-        count_debug += 1
-        count_debug %= 10000
-        count_inner_debug = 0
         while simulation_app.is_running():
-            print(f"{count_inner_debug=}")
-            count_inner_debug += 1
-            count_inner_debug %= 10000
             with torch.inference_mode():
                 if controller.reset_state:
                     controller.reset()
