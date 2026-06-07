@@ -151,6 +151,9 @@ FSM 目前包含 phases：
 ### Step 1. 環境準備
 
 ```bash
+su - glows
+git clone https://github.com/douobb/aicapstone.git
+cd aicapstone
 make submodules
 uv sync
 source .venv/bin/activate
@@ -187,12 +190,17 @@ python scripts/datagen/generate.py \
     --record \
     --use_lerobot_recorder \
     --lerobot_dataset_repo_id ${HF_USER}/<generated_dataset_repo> \
+    --quality \
     --object_poses data/bathroom/object_poses.json
 ```
 
 ### Step 3. Policy Training
 
 在 host 端訓練：
+
+```bash
+wandb login
+```
 
 ```bash
 lerobot-train \
@@ -215,6 +223,8 @@ python scripts/rollout.py \
     --policy_action_horizon=16 \
     --device=cuda \
     --enable_cameras \
+    --rendering_mode=quality \
+    --quality \
     --eval_rounds=10 \
     --episode_length_s=30
 ```
